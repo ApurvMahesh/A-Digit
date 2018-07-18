@@ -1,6 +1,8 @@
 <component name="libraryTable">
   <library name="Flutter Plugins" type="FlutterPluginsLibraryType">
-    <CLASSES />
+    <CLASSES>
+      <root url="file://D:/flutter_windows_v0.5.1-beta/flutter/.pub-cache/hosted/pub.dartlang.org/google_sign_in-3.0.4" />
+    </CLASSES>
     <JAVADOC />
     <SOURCES />
   </library>

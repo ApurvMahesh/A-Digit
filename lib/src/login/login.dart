@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'google_signin.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'dart:async';
+import "package:http/http.dart" as http;
+import 'dart:convert' show json;
 
 class LoginPage extends StatefulWidget {
   static String tag = 'login-page';
@@ -7,7 +12,44 @@ class LoginPage extends StatefulWidget {
   _LoginPageState createState() => new _LoginPageState();
 }
 
+GoogleSignIn _googleSignIn = new GoogleSignIn(
+  scopes: [
+    'email',
+    'https://www.googleapis.com/auth/contacts.readonly',
+  ],
+);
+
 class _LoginPageState extends State<LoginPage> {
+
+  GoogleSignInAccount _currentUser;
+  String _contactText;
+
+  Future<Null> _handleSignOut() async {
+    _googleSignIn.disconnect();
+  }
+
+  Future<Null> _handleSignIn() async {
+    try {
+      await _googleSignIn.signIn();
+    } catch (error) {
+      print(error);
+    }
+  }
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    //_handleSignOut();
+    _googleSignIn.onCurrentUserChanged.listen((GoogleSignInAccount account) {
+      setState(() {
+        _currentUser = account;
+      });
+      if (_currentUser != null) {
+        _handleGetContact();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final logo = new Container(
@@ -102,7 +144,9 @@ class _LoginPageState extends State<LoginPage> {
         child: MaterialButton(
           minWidth: 200.0,
           height: 42.0,
-          onPressed: () {},
+          onPressed: () {
+            _handleSignIn();
+          },
           color: Color(0XEEdd4b39),
           child:
               Text('Log In with google', style: TextStyle(color: Colors.white)),
@@ -141,5 +185,50 @@ class _LoginPageState extends State<LoginPage> {
         ),
       ),
     );
+  }
+  Future<Null> _handleGetContact() async {
+    setState(() {
+      _contactText = "Loading contact info...";
+    });
+    final http.Response response = await http.get(
+      'https://people.googleapis.com/v1/people/me/connections'
+          '?requestMask.includeField=person.names',
+      headers: await _currentUser.authHeaders,
+    );
+    if (response.statusCode != 200) {
+      setState(() {
+        _contactText = "People API gave a ${response.statusCode} "
+            "response. Check logs for details.";
+      });
+      print('People API ${response.statusCode} response: ${response.body}');
+      return;
+    }
+    final Map<String, dynamic> data = json.decode(response.body);
+    final String namedContact = _pickFirstNamedContact(data);
+    setState(() {
+      if (namedContact != null) {
+        _contactText = "I see you know $namedContact!";
+      } else {
+        _contactText = "No contacts to display.";
+      }
+    });
+  }
+
+  String _pickFirstNamedContact(Map<String, dynamic> data) {
+    final List<dynamic> connections = data['connections'];
+    final Map<String, dynamic> contact = connections?.firstWhere(
+          (dynamic contact) => contact['names'] != null,
+      orElse: () => null,
+    );
+    if (contact != null) {
+      final Map<String, dynamic> name = contact['names'].firstWhere(
+            (dynamic name) => name['displayName'] != null,
+        orElse: () => null,
+      );
+      if (name != null) {
+        return name['displayName'];
+      }
+    }
+    return null;
   }
 }
